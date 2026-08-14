@@ -1833,8 +1833,14 @@ game_boot_result Emulator::Load(const std::string& title_id, bool is_disc_patch,
 			}
 		}
 
-		// Detect boot location
-		const std::string hdd0_game = vfs::get("/dev_hdd0/game/");
+		// Detect boot location.
+		// Derive the HDD0 game directory from the stable config value rather than
+		// vfs::get(). While the VFS is being torn down (e.g. during exit) the mount
+		// table can be incomplete and vfs::get("/dev_hdd0/game/") may return a bogus
+		// value such as "/", making a disc game that is already in the correct games
+		// dir look like it was "at invalid location /dev_hdd0/game/" and get moved
+		// to a nested path.
+		const std::string hdd0_game = rpcs3::utils::get_hdd0_dir() + "game/";
 		const bool from_hdd0_game = IsPathInsideDir(m_path, hdd0_game);
 
 		if (game_boot_result error = VerifyPathCasing(m_path, hdd0_game, from_hdd0_game); error != game_boot_result::no_errors)
@@ -1858,8 +1864,23 @@ game_boot_result Emulator::Load(const std::string& title_id, bool is_disc_patch,
 				// Booting disc game from wrong location
 				sys_log.error("Disc game %s found at invalid location /dev_hdd0/game/", m_title_id);
 
+				// Only relocate when the disc dir is actually located inside the HDD0
+				// game dir. If from_hdd0_game was misjudged (stale boot state during
+				// exit) or sfb_dir lives elsewhere (e.g. already in the games dir), a
+				// blind substr + rename would move the whole game to a bogus nested
+				// path. Refuse in that case instead of corrupting the library.
+				if (!IsPathInsideDir(sfb_dir, hdd0_game))
+				{
+					sys_log.error("Disc game %s: refusing to move disc dir '%s' because it is not inside HDD0 game dir '%s' (m_path='%s', from_hdd0_game=%d, state=%d)",
+						m_title_id, sfb_dir, hdd0_game, m_path, from_hdd0_game, static_cast<int>(m_state.load()));
+					return game_boot_result::wrong_disc_location;
+				}
+
 				const std::string games_common = rpcs3::utils::get_games_dir();
 				const std::string dst_dir = games_common + sfb_dir.substr(hdd0_game.size());
+
+				sys_log.warning("Disc game %s: moving disc dir from '%s' to '%s' (state=%d)",
+					m_title_id, sfb_dir, dst_dir, static_cast<int>(m_state.load()));
 
 				// Move and retry from correct location
 				if (fs::create_path(fs::get_parent_dir(dst_dir)) && fs::rename(sfb_dir, dst_dir, false))
