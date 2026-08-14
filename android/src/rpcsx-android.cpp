@@ -937,8 +937,14 @@ class MainThreadProcessor {
   std::mutex mutex;
   std::condition_variable cv;
   std::deque<std::pair<std::function<void(JNIEnv *)>, atomic_t<u32> *>> queue;
+  std::thread::id owner_thread{};
 
 public:
+  bool is_owner_thread() const {
+    return owner_thread != std::thread::id{} &&
+           owner_thread == std::this_thread::get_id();
+  }
+
   void push(std::function<void(JNIEnv *)> cb, atomic_t<u32> *wakeUp = nullptr) {
     std::lock_guard lock(mutex);
     queue.push_back({std::move(cb), wakeUp});
@@ -950,6 +956,7 @@ public:
   }
 
   void process(JNIEnv *env) {
+    owner_thread = std::this_thread::get_id();
     while (true) {
       std::function<void(JNIEnv *)> cb;
       atomic_t<u32> *wakeUp = nullptr;
@@ -1429,10 +1436,22 @@ static void setupCallbacks() {
   Emu.SetCallbacks({
       .call_from_main_thread =
           [](std::function<void()> cb, atomic_t<u32> *wake_up) {
-            cb();
-            if (wake_up) {
-              *wake_up = true;
+            if (g_mainThreadProcessor.is_owner_thread()) {
+              // Already on the main-thread processor: run inline to avoid
+              // queuing behind ourselves (would deadlock blocking callers).
+              cb();
+              if (wake_up) {
+                *wake_up = true;
+              }
+              return;
             }
+
+            // Otherwise hand the callback to the dedicated main-thread
+            // processor. Running it on the calling thread is unsafe: Kill()'s
+            // join thread moves its own ownership into the callback, so tearing
+            // the callback down inline would make the thread join itself and
+            // stall for several seconds.
+            g_mainThreadProcessor.push(std::move(cb), wake_up);
           },
       .on_run = [](auto...) {},
       .on_pause = [](auto...) {},
@@ -1882,7 +1901,7 @@ extern "C" bool _rpcsx_surfaceEvent(JNIEnv *env, jobject surface, jint event) {
       ANativeWindow_release(prevWindow);
     }
 
-    if (auto padThread = pad::get_pad_thread()) {
+    if (auto padThread = pad::get_pad_thread(true)) {
       padThread->open_home_menu();
     }
 

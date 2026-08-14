@@ -142,12 +142,18 @@ namespace rsx
 					if (btn != pad_button::cross)
 						return page_navigation::stay;
 
-					rsx_log.notice("User selected exit game in home menu");
-					Emu.CallFromMainThread([]
-						{
-							Emu.GracefulShutdown(false, true);
-						});
-					return page_navigation::stay;
+				rsx_log.notice("User selected exit game in home menu");
+				Emu.CallFromMainThread([]
+					{
+						// Exiting the game must only shut the emulator down, never trigger a
+						// leftover after_kill_callback. Otherwise a previous "Save State"
+						// (which installs a Restart callback to relaunch the game after
+						// saving) can linger and cause the game to restart instead of
+						// closing when the user exits.
+						Emu.after_kill_callback = nullptr;
+						Emu.GracefulShutdown(false, true);
+					});
+				return page_navigation::stay;
 				});
 
 			apply_layout();
