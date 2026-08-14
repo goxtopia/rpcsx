@@ -143,7 +143,12 @@ option(WITHOUT_OPENAL "Disable OpenAL" OFF)
 option(COMPILE_FFMPEG "Compile FFmpeg" ON)
 
 # rpcs3 options
-option(USE_NATIVE_INSTRUCTIONS "USE_NATIVE_INSTRUCTIONS makes rpcs3 compile with -march=native, which is useful for local builds, but not good for packages." ON)
+if(ANDROID)
+    set(USE_NATIVE_INSTRUCTIONS_DEFAULT OFF)
+else()
+    set(USE_NATIVE_INSTRUCTIONS_DEFAULT ON)
+endif()
+option(USE_NATIVE_INSTRUCTIONS "USE_NATIVE_INSTRUCTIONS makes rpcs3 compile with -march=native, which is useful for local builds, but not good for packages." ${USE_NATIVE_INSTRUCTIONS_DEFAULT})
 option(WITH_LLVM "Enable usage of LLVM library" ON)
 option(BUILD_LLVM "Build LLVM from git submodule" OFF)
 option(STATIC_LINK_LLVM "Link against LLVM statically. This will get set to ON if you build LLVM from the submodule." OFF)
@@ -282,4 +287,3 @@ if (WITH_PS3)
     add_subdirectory(rpcs3)
     add_subdirectory(ps3fw)
 endif()
-

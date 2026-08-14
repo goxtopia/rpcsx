@@ -22,6 +22,7 @@
 #include <rx/Rc.hpp>
 #include <rx/Version.hpp>
 #include <rx/align.hpp>
+#include <rx/asm.hpp>
 #include <rx/hexdump.hpp>
 
 #include <elf.h>
@@ -885,6 +886,10 @@ static orbis::SysResult launchDaemon(orbis::Thread *thread, std::string path,
 }
 
 int main(int argc, const char *argv[]) {
+#ifdef ARCH_ARM64
+  rx::init_arm_timer_scale();
+#endif
+
   if (argc == 2) {
     if (std::strcmp(argv[1], "-h") == 0 ||
         std::strcmp(argv[1], "--help") == 0) {

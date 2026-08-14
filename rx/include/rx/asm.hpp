@@ -267,7 +267,7 @@ constexpr u32 clz128(u128 arg) {
 
 inline void pause() {
 #if defined(ARCH_ARM64)
-  __asm__ volatile("yield");
+  __asm__ volatile("isb" ::: "memory");
 #elif defined(_M_X64)
   _mm_pause();
 #elif defined(ARCH_X64)
@@ -279,9 +279,29 @@ inline void pause() {
 
 inline void yield() { std::this_thread::yield(); }
 
+// ARM's architectural timer commonly runs below 100 MHz, while these waits
+// were tuned around a roughly 3 GHz x86 cycle counter.
+#ifdef ARCH_ARM64
+inline u64 arm_timer_scale = 1;
+
+inline void init_arm_timer_scale() {
+  u64 freq = 0;
+  __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+
+  // Convert units of 100 nominal x86 cycles to architectural timer ticks.
+  if (const u64 timerScale = freq / 30000000) {
+    arm_timer_scale = timerScale;
+  }
+}
+#endif
+
 // Synchronization helper (cache-friendly busy waiting)
-inline void busy_wait(usz cycles = 3000) {
+inline void busy_wait(u64 cycles = 3000) {
+#ifdef ARCH_ARM64
+  const u64 stop = get_tsc() + ((cycles / 100) * arm_timer_scale);
+#else
   const u64 stop = get_tsc() + cycles;
+#endif
   do
     pause();
   while (get_tsc() < stop);

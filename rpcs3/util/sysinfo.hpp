@@ -54,6 +54,21 @@ namespace utils
 	bool has_appropriate_um_wait();
 
 	bool has_um_wait();
+#ifdef ARCH_ARM64
+	bool has_neon();
+
+	bool has_sha3();
+
+	bool has_dotprod();
+
+	bool has_i8mm();
+
+	bool has_sve();
+
+	bool has_sve2();
+
+	int sve_length();
+#endif
 
 	std::string get_cpu_brand();
 

@@ -687,6 +687,16 @@ jit_compiler::jit_compiler(const std::unordered_map<std::string, u64>& _link, co
 		mem = std::make_unique<MemoryManager1>(std::move(symbols_cement));
 	}
 
+	std::vector<std::string> attributes;
+
+#if defined(ARCH_ARM64)
+	attributes.push_back(utils::has_sha3() ? "+sha3" : "-sha3");
+	attributes.push_back(utils::has_dotprod() ? "+dotprod" : "-dotprod");
+	attributes.push_back(utils::has_i8mm() ? "+i8mm" : "-i8mm");
+	attributes.push_back(utils::has_sve() ? "+sve" : "-sve");
+	attributes.push_back(utils::has_sve2() ? "+sve2" : "-sve2");
+#endif
+
 	{
 
 		m_engine = std::unique_ptr<llvm::ExecutionEngine, void (*)(llvm::ExecutionEngine*)>{
@@ -700,6 +710,7 @@ jit_compiler::jit_compiler(const std::unordered_map<std::string, u64>& _link, co
 		//.setCodeModel(llvm::CodeModel::Large)
 #endif
 				.setRelocationModel(llvm::Reloc::Model::PIC_)
+				.setMAttrs(attributes)
 				.setMCPU(m_cpu)
 				.create(),
 			[](llvm::ExecutionEngine* engine)

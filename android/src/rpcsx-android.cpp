@@ -1732,6 +1732,10 @@ extern "C" bool _rpcsx_initialize(std::string_view rootDir,
 
   g_initialized = true;
 
+#ifdef ARCH_ARM64
+  rx::init_arm_timer_scale();
+#endif
+
   if (int r = libusb_set_option(nullptr, LIBUSB_OPTION_NO_DEVICE_DISCOVERY,
                                 nullptr);
       r != 0) {

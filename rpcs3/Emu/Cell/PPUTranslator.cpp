@@ -1301,7 +1301,11 @@ void PPUTranslator::VMADDFP(ppu_opcode_t op)
 void PPUTranslator::VMAXFP(ppu_opcode_t op)
 {
 	const auto [a, b] = get_vrs<f32[4]>(op.va, op.vb);
+#ifdef ARCH_ARM64
+	set_vr(op.vd, vec_handle_result(fmax(a, b)));
+#else
 	set_vr(op.vd, vec_handle_result(bitcast<f32[4]>(bitcast<u32[4]>(fmax(a, b)) & bitcast<u32[4]>(fmax(b, a)))));
+#endif
 }
 
 void PPUTranslator::VMAXSB(ppu_opcode_t op)
@@ -1363,7 +1367,11 @@ void PPUTranslator::VMHRADDSHS(ppu_opcode_t op)
 void PPUTranslator::VMINFP(ppu_opcode_t op)
 {
 	const auto [a, b] = get_vrs<f32[4]>(op.va, op.vb);
+#ifdef ARCH_ARM64
+	set_vr(op.vd, vec_handle_result(fmin(a, b)));
+#else
 	set_vr(op.vd, vec_handle_result(bitcast<f32[4]>(bitcast<u32[4]>(fmin(a, b)) | bitcast<u32[4]>(fmin(b, a)))));
+#endif
 }
 
 void PPUTranslator::VMINSB(ppu_opcode_t op)
@@ -1607,6 +1615,16 @@ void PPUTranslator::VPERM(ppu_opcode_t op)
 {
 	const auto [a, b, c] = get_vrs<u8[16]>(op.va, op.vb, op.vc);
 
+#ifdef ARCH_ARM64
+	if (op.ra == op.rb)
+	{
+		set_vr(op.vd, tbl(a, ~c & 0xf));
+		return;
+	}
+
+	set_vr(op.vd, tbl2(b, a, ~c & 0x1f));
+	return;
+#else
 	if (op.ra == op.rb)
 	{
 		set_vr(op.vd, pshufb(a, ~c & 0xf));
@@ -1622,6 +1640,7 @@ void PPUTranslator::VPERM(ppu_opcode_t op)
 
 	const auto i = eval(~c & 0x1f);
 	set_vr(op.vd, select(noncast<s8[16]>(c << 3) >= 0, pshufb(a, i), pshufb(b, i)));
+#endif
 }
 
 void PPUTranslator::VPKPX(ppu_opcode_t op)

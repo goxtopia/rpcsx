@@ -188,13 +188,13 @@ void cpu_translator::initialize(llvm::LLVMContext& context, llvm::ExecutionEngin
 		m_use_gfni = true;
 	}
 
-	// Aarch64 CPUs
-	if (cpu == "cyclone" || cpu.contains("cortex"))
-	{
-		m_use_fma = true;
-		// AVX does not use intrinsics so far
-		m_use_avx = true;
-	}
+#ifdef ARCH_ARM64
+	m_use_dotprod = utils::has_dotprod();
+	m_use_i8mm = utils::has_i8mm();
+	m_use_sve_128 = utils::has_sve() && utils::sve_length() == 128;
+	m_use_sve2_128 = utils::has_sve2() && utils::sve_length() == 128;
+#endif
+
 }
 
 llvm::Value* cpu_translator::bitcast(llvm::Value* val, llvm::Type* type) const
